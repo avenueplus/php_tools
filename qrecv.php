@@ -105,19 +105,20 @@ foreach($accounts as $account) {
         echo "subname :"; print_r($subname); echo "\n";*/
 
 
-        $subject = $receiver->header( array('subject','value') , '' );
+        $subjectValue = $receiver->header( array('subject','value') , '' );
         $internal_encoding = mb_internal_encoding();
         if($internal_encoding != 'JIS'){
             mb_internal_encoding('JIS');
         }
-        $subject = mb_decode_mimeheader($subject);
+        $subjectValue = mb_decode_mimeheader($subjectValue);
         mb_internal_encoding($internal_encoding);
-        //$subject = mb_convert_encoding($subject, 'UTF-8', 'ISO-2022-JP-MS');
+
+        $subject = mb_convert_encoding($subjectValue, 'UTF-8', 'ISO-2022-JP-MS');
+        $file_subject = mb_convert_encoding($subjectValue, 'CP932', 'ISO-2022-JP-MS');
 
         echo "subject :"; print_r($subject); echo "\n";
 
 
-        //$contract = "KOTEI";
         $contract = "";
         $rcd = ereg("IDENT", $subject , $matches);
         if(!$rcd) {
@@ -181,7 +182,7 @@ foreach($accounts as $account) {
             $filename = $contract . "-" . $account['user'] . "-" . sprintf("%03d", $fcnt);
         }
 
-        $fp = fopen($filebase . sprintf("%03d", $fcnt), 'w');
+        $fp = fopen($filebase . sprintf("%03d", $fcnt) . "-" . $file_subject, 'w');
         fwrite($fp, $output);
         fclose($fp);
 
