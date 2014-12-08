@@ -8,17 +8,17 @@ include_once('qdmail_receiver.php');
 
 $accounts = array(
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.100',
+            'host'=>'192.168.169.101',
             'user'=>'sakura.tomoyo',
             'pass'=>'1',
     ),
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.100',
+            'host'=>'192.168.169.101',
             'user'=>'sakura.shaoran',
             'pass'=>'1',
     ),
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.100',
+            'host'=>'192.168.169.101',
             'user'=>'sakura.toya',
             'pass'=>'1',
     ),
@@ -86,31 +86,49 @@ foreach($accounts as $account) {
         /*$subject = $receiver->all( array('subject','name') , '' );
         echo "name :" . $subject . "\n";*/
 
-
-
-        $subject = $receiver->header( array('subject','value') , '' );
-        //echo "header :"; print_r($receiver->header()); echo "\n";
-
-        $subject = mb_decode_mimeheader($subject);
-
-        //echo "mime :"; print_r($subject); echo "\n";
-
         /*$rcd = mbereg(マッチパターン, 対象変数 [, 代入配列]);
         $rcd = mberegi(マッチパターン, 対象変数 [, 代入配列]);
         $rcd = mbereg_replace(マッチパターン, 置換文字列, 対象変数);
         $rcd = mberegi_replace(マッチパターン, 置換文字列, 対象変数);*/
 
-        $rcd = ereg("IDF", $subject , $matches);
+
+        /*$subname = $receiver->header( array('subject','name') , '' );
+
+        $internal_encoding = mb_internal_encoding();
+        if($internal_encoding != 'JIS'){
+            mb_internal_encoding('JIS');
+        }
+        $subname = mb_decode_mimeheader($subname);
+        mb_internal_encoding($internal_encoding);
+        //$subname = mb_convert_encoding($subname, 'UTF-8', 'ISO-2022-JP-MS');
+
+        echo "subname :"; print_r($subname); echo "\n";*/
+
+
+        $subject = $receiver->header( array('subject','value') , '' );
+        $internal_encoding = mb_internal_encoding();
+        if($internal_encoding != 'JIS'){
+            mb_internal_encoding('JIS');
+        }
+        $subject = mb_decode_mimeheader($subject);
+        mb_internal_encoding($internal_encoding);
+        //$subject = mb_convert_encoding($subject, 'UTF-8', 'ISO-2022-JP-MS');
+
+        echo "subject :"; print_r($subject); echo "\n";
+
+
+        //$contract = "KOTEI";
         $contract = "";
+        $rcd = ereg("IDENT", $subject , $matches);
         if(!$rcd) {
             $contract = "[]";
         } else {
-            $contract = "[" . $matches[0] . "]";
+            $var = mbereg_replace("【", "", $matches[0]);
+            $var = mbereg_replace("】", "", $var);
+            $contract = "[" . $var . "]";
         }
 
         echo "cont :"; print_r($contract); echo "\n";
-
-
 
 
         $body = $receiver->all();
@@ -130,7 +148,9 @@ foreach($accounts as $account) {
             }
         }
         $mimeType = $bodyMime;
-            
+
+        echo "bodyMime :"; print_r($mimeType); echo "\n";
+
         $rcd = ereg("Sender:.*", $body , $matches);
         $bodyMime = "";
         if(!$rcd) {
@@ -152,7 +172,7 @@ foreach($accounts as $account) {
         echo "body :"; print_r($bodyMime); echo "\n";
 
         $output = ob_get_contents();
-        ob_end_clean();
+        //ob_end_clean();
         $filebase = $contract . "-" . $account['user'] . "-";
         $filename = $contract . "-" . $account['user'] . "-" . sprintf("%03d", $fcnt);
 
@@ -165,7 +185,6 @@ foreach($accounts as $account) {
         fwrite($fp, $output);
         fclose($fp);
 
-        //print_r($account['user']);
         $receiver->next();
     }
 }
