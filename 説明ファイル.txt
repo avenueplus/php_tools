@@ -1,0 +1,133 @@
+
+G1 Garbage Collectorの日本語訳　→ＣＭＳについても詳しい記述あり
+http://sipadan2003.blogspot.jp/2013/05/getting-started-with-g1-garbage.html
+
+Java 7 CMS GCの基本的な情報の整理
+http://nekop.hatenablog.com/entry/20140327/1395886237
+
+Javaのヒープ・メモリ管理の仕組みについて
+http://promamo.com/?p=2828
+
+【現時点での候補としては】
+
+    ・CMSが開始されるトリガーの閾値を変更
+      （詳細は後述）
+      下記トリガー１・２をCMSが小刻み目に発生するように設定して
+      大きく溜まってからの長いMark-Swwepを避ける。
+
+       ・トリガー１
+                CMSInitiatingOccupancyFractionを下げる（30程度？）
+                （デフォルトは-1で他のパラメータから計算され、デフォルトでは92%が標準的になっている）
+       ・トリガー２
+                今CMS走らせないと先にヒープ埋まる、という統計判断
+                    UseCMSInitiatingOccupancyOnlyを設定すると無効になる
+                    →あえて無効にするメリットはない様子。
+
+    他パラメータ備考
+        CMSIncrementalMode
+            Java 8で非推奨なのでもう忘れろ。
+        UseParNewGC, CMSParallelRemarkEnabled
+            デフォルトtrueだから忘れろ。
+        CMSPermGenSweepingEnabled
+            Java 5でしか使わないので忘れろ。
+        CMSClassUnloadingEnabled
+            デフォルトfalse。ClassLoader.defineClass()を利用しているバイトコードエンハンサ使っていて、
+            無尽蔵にクラスを動的定義してロードしてPerm埋まるような場合はtrueにする。
+            アプリが未定とかよくわからない場合も安全に倒してtrueにしておいたほうがいいかも。
+            trueにするとGC中にクラスのアンロードをするが、その代償として
+            remarkフェーズのGCポーズが増えるらしい。
+            Java 8からデフォルトtrue
+
+Responsiveness | レスポンス性能重視のコレクター
+
+    ・CMS（コンカレント・マーク・スイープ）ガーベジコレクタ
+        ・concurrent low pause collector とも呼ばれる
+
+        ・Tenured世代(Old世代のこと)を回収
+        ・Young世代上ではパラレルコレクタと同じアルゴリズムを使う
+
+        ・多くのガーベジコレクションの処理を、アプリケーションスレッドと並行して
+          実行することによって、停止時間を最小限にする
+        ・Full GCがない限りコンパクションは行わない
+        ・生存オブジェクトのコピーまたはコンパクションは行わない
+            →断片化が問題になる場合、アプリケーションのヒープサイズを大きくする必要がある
+
+     ・ガーベジコレクション手順の復習
+        ・Young GC（Scavenge GC　頻繁に実施）
+            ・生存オブジェクト
+                ・Eden空間とSurvivor空間から、もう１方のSurvivor空間にコピー
+                ・年齢のしきい値に到着した古いオブジェクトはOld世代に移動
+                ・Eden領域をクリアし、片方のSuvivor空間もクリア
+                    →Old世代が増える
+
+          【Scavenge GCでは，この移動回数が「MaxTenuringThreshold」と呼ばれる閾値を
+          　上回るオブジェクトについて，Old領域への移動を行う。】
+
+        ・Old世代コレクション
+            【Old世代の占有率がしきい値を超えると、CMSを起動】
+             →　そもそもOld世代コレクションが起動されていない？
+
+            ・CMSが開始されるトリガー
+                Old領域の利用率がCMSInitiatingOccupancyFractionに到達した場合
+                    CMSInitiatingOccupancyFraction：デフォルト　－１
+                        -1の場合は他の値を元に計算
+                            100 - MinHeapFreeRatio + CMSTriggerRatio * MinHeapFreeRatio / 100
+                            デフォルト
+                                MinHeapFreeRatio=40
+                                CMSTriggerRatio=80
+                            CMSInitiatingOccupancyFractionのデフォルト値は92
+                            Old領域が92%になったときに最初のCMS GCが行われる
+
+                CMSInitiatingOccupancyFractionを下げる（70程度）
+
+                今CMS走らせないと先にヒープ埋まる、という統計判断
+                    UseCMSInitiatingOccupancyOnly：無効にする
+
+            Initial mark
+                短い停止を伴うフェーズ
+            Concurrent Markingフェーズ
+                アプリケーションの実行と並行して生存オブジェクトを探す
+                    Initial Markフェーズでマークされなかったオブジェクトを適宜に解放
+                    （マークされていないオブジェクト == 死亡オブジェクト）
+
+                →　ここでOld世代の多くのメモリが解放されるはず。（コンパクションは行われない）
+
+            Remarkフェース
+                Concurrent Markingフェーズで見つけられなかったオブジェクトを探す
+
+            【Old世代の占有率がしきい値に達するまで待機】
+
+
+
+Throughput | スループット性能重視のコレクター
+
+    ParallelOldガーベジコレクション
+        ヒープ全体のコンパクションのみ行うので停止時間が長くなる
+
+    G1ガーベジコレクタ 
+        (CMS)に取って代わる長期的なもの
+        巨大ヒープを必要とするアプリケーションを動作するためのソリューション
+        ヒープサイズが6GB以上、安定かつ予測可能な停止時間が0.5秒以下というアプリケーション
+
+        ・現在動作中のアプリケーションがCMSまたはParallelOldGCガーベジコレクタの
+          いずれかを使っているとき、次の特徴のいずれかを満たしていれば、
+          G1に変更するメリットがある可能性があります。
+            ・Full GCの実行時間が非常に長いか、Full GCが非常に頻発する
+            ・オブジェクトを割り当てる割合か、Old世代領域に昇進する割合が著しく異なる場合
+            ・ガーベジコレクションまたはコンパクションによる停止時間が長い場合（0.5～1秒を超過）
+
+        ・アプリケーションがCMSまたはParallelOldGCを使っていて、
+          長いガーベジコレクション停止が起きていない場合、
+          G1に変更せずに現在のコレクタを使い続けるのが良い
+        ・G1はリアルタイムのコレクタでない（停止時間目標に高い確率で対処）
+        ・G1は、ConcurrentフェーズとParallelフェーズの両方を持つ
+            ・Concurrentフェーズ
+                複数のアプリケーションスレッドと共に1つのGCスレッドが動作し、
+                Refinement、Marking、Cleanupを行う
+            ・Parallelフェーズ
+                GCを複数スレッドで動作し、Stop the worldの原因となるもの
+            ・FullGC
+                単一スレッドで動作するが
+                アプリケーションを適切にチューニングすれば、FullGCを回避できる場合があ
+
+

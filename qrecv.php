@@ -8,17 +8,17 @@ include_once('qdmail_receiver.php');
 
 $accounts = array(
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.101',
+            'host'=>'127.0.0.1',
             'user'=>'sakura.tomoyo',
             'pass'=>'1',
     ),
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.101',
+            'host'=>'127.0.0.1',
             'user'=>'sakura.shaoran',
             'pass'=>'1',
     ),
     array(  'protocol'=>'pop3',
-            'host'=>'192.168.169.101',
+            'host'=>'127.0.0.1',
             'user'=>'sakura.toya',
             'pass'=>'1',
     ),
@@ -28,7 +28,7 @@ $accounts = array(
 //echo qd_receive_mail( 'count' );
 //qd_receive_mail( 'next' );
 
-if(!chroot("./mails")) {
+if(!chdir(".\mails")) {
     exit(1);
 }
 
@@ -120,7 +120,7 @@ foreach($accounts as $account) {
 
 
         $contract = "";
-        $rcd = ereg("IDENT", $subject , $matches);
+        $rcd = ereg("DPS[0-9\-]+", $subject , $matches);
         if(!$rcd) {
             $contract = "[]";
         } else {
